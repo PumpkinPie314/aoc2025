@@ -2,12 +2,12 @@
 use std::{fmt::Debug, iter::{self, Sum}, ops::{Add, Deref, DerefMut, Div, Mul, Neg, Sub}, vec};
 
 fn main() {
-    let input = include_str!("test");
+    let input = include_str!("input");
     let _p2 = input
         .replace(['{', '}', '[', ']', '(', ')'], "")
         .lines()
         // .skip(113)
-        .take(1)
+        // .take(1)
         .map(|line| {
             let mut words = line.split_whitespace();
             let size = words.next().unwrap().len();
@@ -40,18 +40,44 @@ fn main() {
             let basis = homogenious_matrix.clone().transpose().nullspace();
             let basis_dimentions = basis.len();
             if basis_dimentions == 0 {
-                return particular.into_iter().sum();
+                return particular.into_iter().sum::<Rational>();
             }
             // gradient descent 
-            let mut free_variables = vec![0i16; basis_dimentions];
+            let mut free_variables = vec![Rational::ZERO; basis.len()];
+            let mut button_presses = vec![Rational::ZERO; basis[0].len()];
             loop {
-                let neighbours = vec![free_variables.clone(); basis_dimentions*2];
+                button_presses = basis.mul(&free_variables);
+                for i in 0..button_presses.len() {
+                    button_presses[i] = button_presses[i] + particular[i]
+                }
 
+                let mut neighbours = vec![free_variables.clone(); &basis.len()*2];
+                for dim in 0..basis_dimentions {
+                    neighbours[dim * 2 + 0][dim] = neighbours[dim * 2 + 0][dim] + 1.into();
+                    neighbours[dim * 2 + 1][dim] = neighbours[dim * 2 + 1][dim] - 1.into();
+                }
+                if button_presses.iter().any(|x|x.numerator.is_negative()) {
+                    // choose the least negative one
+                    free_variables = neighbours.into_iter().max_by(|a, b| {
+                        let a: Rational = (&basis.mul(&a)).into_iter()
+                            .filter(|x|x.numerator.is_negative())
+                            .cloned()
+                            .sum();
+                        let b: Rational = (&basis.mul(&b)).into_iter()
+                            .filter(|x|x.numerator.is_negative())
+                            .cloned()
+                            .sum();
+                        a.cmp(&b)
+                    }).unwrap();
+                    println!("{:?}", free_variables);
+                } else {
+                    break;
+                }
             }
 
 
             
-            return Rational::ZERO;
+            return button_presses.into_iter().sum()
         })
         .collect::<Vec<_>>();
     
@@ -103,7 +129,7 @@ impl Matrix {
         }).collect();
         Matrix(transpose, self.1, self.2.flip())
     }
-    fn mul(self, v: Vec<Rational>) -> Vec<Rational>  {
+    fn mul(&self, v: &Vec<Rational>) -> Vec<Rational>  {
         assert_eq!(self.len(), v.len());
         let mut product = vec![Rational::ZERO; self[0].len()];
         for col in 0..self.len() {
@@ -227,6 +253,22 @@ impl Rational {
             numerator: self.numerator / gcd * sign_fliper,
             denominator: self.denominator / gcd * sign_fliper,
         }
+    }
+}
+impl Ord for Rational {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let a = self.numerator  / self.denominator;
+        let b = other.numerator / other.denominator;
+        a.cmp(&b)
+    }
+}
+impl PartialOrd for Rational {    
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match self.numerator.partial_cmp(&other.numerator) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        self.denominator.partial_cmp(&other.denominator)
     }
 }
 impl From<i16> for Rational {
