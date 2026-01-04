@@ -51,14 +51,15 @@ fn main() {
                     button_presses[i] = button_presses[i] + particular[i]
                 }
 
-                let mut neighbours = vec![free_variables.clone(); &basis.len()*2];
+                let mut neighbour_free_vars = vec![free_variables.clone(); &basis.len()*2];
                 for dim in 0..basis_dimentions {
-                    neighbours[dim * 2 + 0][dim] = neighbours[dim * 2 + 0][dim] + 1.into();
-                    neighbours[dim * 2 + 1][dim] = neighbours[dim * 2 + 1][dim] - 1.into();
+                    neighbour_free_vars[dim * 2 + 0][dim] = neighbour_free_vars[dim * 2 + 0][dim] + 1.into();
+                    neighbour_free_vars[dim * 2 + 1][dim] = neighbour_free_vars[dim * 2 + 1][dim] - 1.into();
                 }
+                let mut neighbour_button_presses = neighbour_free_vars.clone().into_iter().map(|x|basis.mul(&x)).collect::<Vec<_>>();
                 if button_presses.iter().any(|x|x.numerator.is_negative()) {
                     // choose the least negative one
-                    free_variables = neighbours.into_iter().max_by(|a, b| {
+                    free_variables = neighbour_free_vars.into_iter().max_by(|a, b| {
                         let a: Rational = (&basis.mul(&a)).into_iter()
                             .filter(|x|x.numerator.is_negative())
                             .cloned()
@@ -71,7 +72,11 @@ fn main() {
                     }).unwrap();
                     println!("{:?}", free_variables);
                 } else {
-                    break;
+                    // base case
+                    // if button_presses <= all neighbours 
+                    // break;
+                    // choose smallest positive naighbour
+                    neighbour_free_vars.iter().filter(|x|**)
                 }
             }
 
