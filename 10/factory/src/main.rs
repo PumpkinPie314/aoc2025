@@ -1,4 +1,35 @@
+/*--- Part Two ---
 
+All of the machines are starting to come online! Now, it's time to worry about the joltage requirements.
+
+Each machine needs to be configured to exactly the specified joltage levels to function properly. Below the buttons on each machine is a big lever that you can use to switch the buttons from configuring the indicator lights to increasing the joltage levels. (Ignore the indicator light diagrams.)
+
+The machines each have a set of numeric counters tracking its joltage levels, one counter per joltage requirement. The counters are all initially set to zero.
+
+So, joltage requirements like {3,5,4,7} mean that the machine has four counters which are initially 0 and that the goal is to simultaneously configure the first counter to be 3, the second counter to be 5, the third to be 4, and the fourth to be 7.
+
+The button wiring schematics are still relevant: in this new joltage configuration mode, each button now indicates which counters it affects, where 0 means the first counter, 1 means the second counter, and so on. When you push a button, each listed counter is increased by 1.
+
+So, a button wiring schematic like (1,3) means that each time you push that button, the second and fourth counters would each increase by 1. If the current joltage levels were {0,1,2,3}, pushing the button would change them to be {0,2,2,4}.
+
+You can push each button as many times as you like. However, your finger is getting sore from all the button pushing, and so you will need to determine the fewest total presses required to correctly configure each machine's joltage level counters to match the specified joltage requirements.
+
+Consider again the example from before:
+
+[.##.] (3) (1,3) (2) (2,3) (0,2) (0,1) {3,5,4,7}
+[...#.] (0,2,3,4) (2,3) (0,4) (0,1,2) (1,2,3,4) {7,5,12,7,2}
+[.###.#] (0,1,2,3,4) (0,3,4) (0,1,2,4,5) (1,2) {10,11,11,5,10,5}
+
+Configuring the first machine's counters requires a minimum of 10 button presses. One way to do this is by pressing (3) once, (1,3) three times, (2,3) three times, (0,2) once, and (0,1) twice.
+
+Configuring the second machine's counters requires a minimum of 12 button presses. One way to do this is by pressing (0,2,3,4) twice, (2,3) five times, and (0,1,2) five times.
+
+Configuring the third machine's counters requires a minimum of 11 button presses. One way to do this is by pressing (0,1,2,3,4) five times, (0,1,2,4,5) five times, and (1,2) once.
+
+So, the fewest button presses required to correctly configure the joltage level counters on all of the machines is 10 + 12 + 11 = 33.
+
+Analyze each machine's joltage requirements and button wiring schematics. What is the fewest button presses required to correctly configure the joltage level counters on all of the machines?
+ */
 use std::{fmt::Debug, iter::{self, Sum}, ops::{Add, Deref, DerefMut, Div, Mul, Neg, Sub}, vec};
 
 fn main() {
@@ -37,34 +68,34 @@ fn main() {
             for (piv_row, &piv_col) in homogenious_matrix.pivots().unwrap().iter().enumerate(){
                 particular[piv_col] = augmented_column[piv_row];
             };
-            let basis = homogenious_matrix.clone().transpose().nullspace();
-            let basis_dimentions = basis.len();
+            let nullspace_basis = homogenious_matrix.clone().transpose().nullspace();
+            let basis_dimentions = nullspace_basis.len();
             if basis_dimentions == 0 {
                 return particular.into_iter().sum::<Rational>();
             }
             // gradient descent 
-            let mut free_variables = vec![Rational::ZERO; basis.len()];
-            let mut button_presses = vec![Rational::ZERO; basis[0].len()];
+            let mut free_variables = vec![Rational::ZERO; nullspace_basis.len()];
+            let mut button_presses;
             loop {
-                button_presses = basis.mul(&free_variables);
+                button_presses = nullspace_basis.mul(&free_variables);
                 for i in 0..button_presses.len() {
                     button_presses[i] = button_presses[i] + particular[i]
                 }
 
-                let mut neighbour_free_vars = vec![free_variables.clone(); &basis.len()*2];
+                let mut neighbour_free_vars = vec![free_variables.clone(); &nullspace_basis.len()*2];
                 for dim in 0..basis_dimentions {
                     neighbour_free_vars[dim * 2 + 0][dim] = neighbour_free_vars[dim * 2 + 0][dim] + 1.into();
                     neighbour_free_vars[dim * 2 + 1][dim] = neighbour_free_vars[dim * 2 + 1][dim] - 1.into();
                 }
-                let mut neighbour_button_presses = neighbour_free_vars.clone().into_iter().map(|x|basis.mul(&x)).collect::<Vec<_>>();
+                let neighbour_button_presses = neighbour_free_vars.clone().into_iter().map(|x|nullspace_basis.mul(&x)).collect::<Vec<_>>();
                 if button_presses.iter().any(|x|x.numerator.is_negative()) {
                     // choose the least negative one
-                    free_variables = neighbour_free_vars.into_iter().max_by(|a, b| {
-                        let a: Rational = (&basis.mul(&a)).into_iter()
+                    free_variables = neighbour_button_presses.into_iter().max_by(|a, b| {
+                        let a: Rational = a.into_iter()
                             .filter(|x|x.numerator.is_negative())
                             .cloned()
                             .sum();
-                        let b: Rational = (&basis.mul(&b)).into_iter()
+                        let b: Rational = b.into_iter()
                             .filter(|x|x.numerator.is_negative())
                             .cloned()
                             .sum();
@@ -73,10 +104,18 @@ fn main() {
                     println!("{:?}", free_variables);
                 } else {
                     // base case
-                    // if button_presses <= all neighbours 
-                    // break;
+                    if button_presses.iter().copied().sum::<Rational>() <= neighbour_button_presses.iter().map(|x|x.iter().copied().sum()).min().unwrap() {
+                        break;
+                    }
                     // choose smallest positive naighbour
-                    neighbour_free_vars.iter().filter(|x|**)
+                    let best_neighbour_idx = neighbour_button_presses.iter().enumerate().filter(|(i, x)|{
+                        (**x).iter().all(|x|(*x).numerator.is_positive())
+                    }).max_by(|(_,xa), (_,xb)|{
+                        let a: Rational = xa.iter().copied().sum();
+                        let b: Rational = xb.iter().copied().sum();
+                        a.cmp(&b)
+                    }).map(|(i,_)| i).unwrap();
+                    free_variables = neighbour_free_vars.swap_remove(best_neighbour_idx)
                 }
             }
 
@@ -103,7 +142,7 @@ impl Orientation {
     }
 }
 #[derive(Debug, Clone)]
-struct Matrix(Vec<Vec<Rational>>, Option<Vec<usize>>, Orientation); // includes pivot columns
+struct Matrix(Vec<Vec<Rational>>, Option<Vec<usize>>, Orientation); // my include pivot columns after refed
 impl Matrix {
     fn print(self: &Self) {
         self.clone()
@@ -135,6 +174,7 @@ impl Matrix {
         Matrix(transpose, self.1, self.2.flip())
     }
     fn mul(&self, v: &Vec<Rational>) -> Vec<Rational>  {
+        dbg!(&self, &v);
         assert_eq!(self.len(), v.len());
         let mut product = vec![Rational::ZERO; self[0].len()];
         for col in 0..self.len() {
@@ -205,7 +245,14 @@ impl Matrix {
         Matrix(mat, Some(piv_cols), Orientation::RowMajor)
     }
     fn nullspace(self) -> Matrix {
-        if self.last().unwrap().iter().all(|x|*x== Rational::ZERO) {return Matrix::new(vec![])};
+        dbg!(&self);
+        // if the matrix has a pivot in every column,
+        //  then the matrix is one-to-one and has no nullspace (besides trivial)
+        if self.pivots().unwrap().iter().len() == self[0].len() {
+            println!("early return!");
+            return Matrix::new(vec![vec![]])
+        };
+
         let mat= self.0;
         let piv_cols = self.1.unwrap();
         let mut nspace: Vec<Vec<Rational>> = vec![];
@@ -215,7 +262,7 @@ impl Matrix {
             for row in 0..mat.len() {
                 v[piv_cols[row]] = -mat[row][fc];
             }
-            v[fc] = Rational::new(1, 1);
+            v[fc] = 1.into();
             nspace.push(v);
         }
         Matrix::new(nspace)
