@@ -1,8 +1,8 @@
-use std::{collections::{HashMap, VecDeque}, iter};
+use std::{collections::{HashMap}, iter};
 
 fn main() {
     let input = include_str!("input");
-    let outputs = input.lines()
+    let outputs_from: HashMap<&str, Vec<&str>> = input.lines()
     .map(|x|{
         let mut words = x.split_whitespace();
         let me = words.next().unwrap()
@@ -12,15 +12,19 @@ fn main() {
     }).chain(iter::once(("out", vec![])))
     .collect::<HashMap<_,_>>();
 
-    let mut ways_to_get_to: HashMap<&str, i32> = outputs.clone().into_iter().map(|(k, _)| (k, 0i32)).collect();
-    *ways_to_get_to.get_mut("you").unwrap() = 1;
-    let mut queue: VecDeque<&str> = vec!["you"].into();
-    while !queue.is_empty() {
-        let me = queue.pop_front().unwrap();
-        for & output in outputs.get(me).unwrap().iter() {
-            queue.push_back(output);
-            *ways_to_get_to.get_mut(output).unwrap() += 1;
-        }
-    }
-    println!("{:?}", *ways_to_get_to.get("out").unwrap())
+    // println!("p1: {:?}", way_to_get_from_to(&links, "you", "out"));
+    let mut memo = HashMap::new();
+    println!("p1: {:?}",way_to_get_from_to(&outputs_from, &mut memo, "you", "out"));
+    println!("p2: {:?}", 
+        way_to_get_from_to(&outputs_from, &mut memo, "svr", "fft")
+        * way_to_get_from_to(&outputs_from, &mut memo, "fft", "dac")
+        * way_to_get_from_to(&outputs_from, &mut memo,  "dac", "out")
+    );
+}
+fn way_to_get_from_to<'a>(outputs_from: &HashMap<&'a str, Vec<&'a str>>, memo: &mut HashMap<(&'a str, &'a str), u64>, from: &'a str, to: &'a str) -> u64 {
+    if outputs_from.get(from).unwrap().contains(&to) {return 1;} 
+    if memo.contains_key(&(from, to)) {return *memo.get(&(from, to)).unwrap();}
+    let ways: u64 = outputs_from.get(from).unwrap().iter().map(|from|way_to_get_from_to(outputs_from, memo, from, to)).sum();
+    memo.insert((from, to).clone(), ways);
+    return ways;
 }

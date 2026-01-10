@@ -1,0 +1,1 @@
+/home/elijah/programing/go/aoc2025/12/christmas_tree_farm/target/debug/christmas_tree_farm: /home/elijah/programing/go/aoc2025/12/christmas_tree_farm/src/main.rs /home/elijah/programing/go/aoc2025/12/christmas_tree_farm/src/test
