@@ -13,16 +13,10 @@ fn main() {
                 .map(|x|x.parse::<u8>().unwrap());
             let width = dimentions.next().unwrap();
             let height = dimentions.next().unwrap();
-            let mut shapes = words
-                .map(|x|x.parse::<u8>().unwrap());
-            let shapes_included = [
-                shapes.next().unwrap(),
-                shapes.next().unwrap(),
-                shapes.next().unwrap(),
-                shapes.next().unwrap(),
-                shapes.next().unwrap(),
-                shapes.next().unwrap(),
-            ];
+            let shapes_included: [u8; 6] = words
+                .map(|x|x.parse::<u8>().unwrap())
+                .collect::<Vec<_>>()
+                .try_into().unwrap();
             Region {
                 width,
                 height,
@@ -30,7 +24,7 @@ fn main() {
                 region: [0u64; 64]
             }
         }).collect::<Vec<_>>();
-    let mut present_shapes_iter = paragraphs.into_iter()
+    let present_shapes: [Shape; 6]  = paragraphs.into_iter()
         .map(|x|{
             let mut rows = x.lines().skip(1)
             .map(|line| line.chars().map(|c|{
@@ -42,22 +36,19 @@ fn main() {
                 }
             }).collect::<String>())
             .map(|binary_string|u64::from_str_radix(&binary_string, 2).unwrap());
-            [
-                rows.next().unwrap(),
-                rows.next().unwrap(),
-                rows.next().unwrap(),
-            ]
-        });
-    let present_shapes = [
-        present_shapes_iter.next().unwrap(),
-        present_shapes_iter.next().unwrap(),
-        present_shapes_iter.next().unwrap(),
-        present_shapes_iter.next().unwrap(),
-        present_shapes_iter.next().unwrap(),
-        present_shapes_iter.next().unwrap(),
-    ];
+            Shape {
+                rows: [
+                    rows.next().unwrap(),
+                    rows.next().unwrap(),
+                    rows.next().unwrap(),
+                ]
+            }
+        }).collect::<Vec<_>>()
+        .try_into()
+        .unwrap();
+
     regions.iter_mut().for_each(|x|{
-        x.add(shape, 0, 0, false);
+        x.add(present_shapes[0], 0, 0, false);
     });
     
     println!("{:?}", present_shapes);
@@ -86,10 +77,7 @@ struct Region {
 impl Region {
     fn add(&mut self, shape: Shape, x_offset: u8, turns: u8, flip: bool) {
         assert!(turns <= 3);
-
-        for _ in 0..turns {
-
-        }
+        
 
     }
 }
