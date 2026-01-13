@@ -1,132 +1,99 @@
-/*--- Part Two ---
-
-All of the machines are starting to come online! Now, it's time to worry about the joltage requirements.
-
-Each machine needs to be configured to exactly the specified joltage levels to function properly. Below the buttons on each machine is a big lever that you can use to switch the buttons from configuring the indicator lights to increasing the joltage levels. (Ignore the indicator light diagrams.)
-
-The machines each have a set of numeric counters tracking its joltage levels, one counter per joltage requirement. The counters are all initially set to zero.
-
-So, joltage requirements like {3,5,4,7} mean that the machine has four counters which are initially 0 and that the goal is to simultaneously configure the first counter to be 3, the second counter to be 5, the third to be 4, and the fourth to be 7.
-
-The button wiring schematics are still relevant: in this new joltage configuration mode, each button now indicates which counters it affects, where 0 means the first counter, 1 means the second counter, and so on. When you push a button, each listed counter is increased by 1.
-
-So, a button wiring schematic like (1,3) means that each time you push that button, the second and fourth counters would each increase by 1. If the current joltage levels were {0,1,2,3}, pushing the button would change them to be {0,2,2,4}.
-
-You can push each button as many times as you like. However, your finger is getting sore from all the button pushing, and so you will need to determine the fewest total presses required to correctly configure each machine's joltage level counters to match the specified joltage requirements.
-
-Consider again the example from before:
-
-[.##.] (3) (1,3) (2) (2,3) (0,2) (0,1) {3,5,4,7}
-[...#.] (0,2,3,4) (2,3) (0,4) (0,1,2) (1,2,3,4) {7,5,12,7,2}
-[.###.#] (0,1,2,3,4) (0,3,4) (0,1,2,4,5) (1,2) {10,11,11,5,10,5}
-
-Configuring the first machine's counters requires a minimum of 10 button presses. One way to do this is by pressing (3) once, (1,3) three times, (2,3) three times, (0,2) once, and (0,1) twice.
-
-Configuring the second machine's counters requires a minimum of 12 button presses. One way to do this is by pressing (0,2,3,4) twice, (2,3) five times, and (0,1,2) five times.
-
-Configuring the third machine's counters requires a minimum of 11 button presses. One way to do this is by pressing (0,1,2,3,4) five times, (0,1,2,4,5) five times, and (1,2) once.
-
-So, the fewest button presses required to correctly configure the joltage level counters on all of the machines is 10 + 12 + 11 = 33.
-
-Analyze each machine's joltage requirements and button wiring schematics. What is the fewest button presses required to correctly configure the joltage level counters on all of the machines?
- */
-use std::{fmt::Debug, iter::{self, Sum}, ops::{Add, Deref, DerefMut, Div, Mul, Neg, Sub}, vec};
+use std::{fmt::Debug, iter::Sum, ops::{Add, AddAssign, Deref, DerefMut, Div, Mul, Neg, Sub, SubAssign}, vec};
 
 fn main() {
     let input = include_str!("input");
     let _p2 = input
-        .replace(['{', '}', '[', ']', '(', ')'], "")
-        .lines()
-        // .skip(113)
-        // .take(1)
-        .map(|line| {
-            let mut words = line.split_whitespace();
-            let size = words.next().unwrap().len();
-            let joltage: Vec<Rational> = words.next_back().unwrap().split(',')
-            .map(|x|x.parse::<i16>().unwrap().into())
-            .collect();
-            let buttons: Vec<Vec<Rational>> = words.map(|x|{
-                let mut b = vec![Rational::ZERO;size];
-                x.split(',')
-                    .map(|wire|wire.parse().unwrap())
-                    .for_each(|wire: usize| b[wire] = 1.into());
-                b
-            }).collect();
-            let matrix = Matrix::new(
-                buttons.into_iter()
-                    .chain(iter::once(joltage)).collect()// augmented
-            ).transpose();
-            // matrix.print();
-            let rref = matrix
-                .row_echelon()
-                .reduced_row_echelon();
-            // rref.print();
-            let mut rref_cols = rref.transpose();
-            // rref_cols.print();
-            let (augmented_column, homogenious_matrix) = (rref_cols.pop().unwrap(), rref_cols);
-            let mut particular =  vec![Rational::ZERO; homogenious_matrix.len()];
-            for (piv_row, &piv_col) in homogenious_matrix.pivots().unwrap().iter().enumerate(){
-                particular[piv_col] = augmented_column[piv_row];
+    .replace(['{', '}', '[', ']', '(', ')'], "")
+    .lines()
+    .skip(167)
+    .take(1)
+    .enumerate()
+    .map(|(i, line)| {
+        let mut words = line.split_whitespace();
+        // parsing
+        let size = words.next().unwrap().len();
+        let joltage: Vec<Rational> = words.next_back().unwrap().split(',')
+        .map(|x|x.parse::<i16>().unwrap().into())
+        .collect();
+        let buttons: Vec<Vec<Rational>> = words.map(|x|{
+            let mut b = vec![Rational::ZERO;size];
+            x.split(',')
+                .map(|wire|wire.parse().unwrap())
+                .for_each(|wire: usize| b[wire] = 1.into());
+            b
+        }).collect();
+        // get into matrices
+        let buttons = Matrix::new(buttons, Orientation::ColumnMajor);
+        let joltage = Matrix::new(vec![joltage], Orientation::ColumnMajor);
+        let matrix = buttons.join(&joltage).transpose();
+        let rref = matrix.clone()
+            .row_echelon()
+            .reduced_row_echelon();
+        let mut rref_cols = rref.clone().transpose();
+        let pivot_columns = &rref.1.clone().unwrap();
+        let (augmented_column, homogenious_matrix) = (rref_cols.pop().unwrap(), rref_cols);
+        let particular = {
+            let mut p: Vec<Rational> = vec![0.into(); buttons.len()];
+            pivot_columns.iter().zip(augmented_column).for_each(|(i, v)| p[*i] = v);
+            Matrix::new(vec![p], Orientation::ColumnMajor)
+        };
+        let nullspace_basis = homogenious_matrix.clone().transpose().nullspace();
+        if nullspace_basis[0].is_empty() {
+            println!("{:?}", particular[0].iter().sum::<Rational>());
+            return particular[0].iter().sum();
+        }
+        if nullspace_basis.len() != 2 {return 0.into();}
+
+        // gradient decent
+        let loss = |free_variable_choices: &Vec<Rational>| -> Rational {
+            let free_variable_choices = Matrix::new(
+                vec![free_variable_choices.clone()],
+                Orientation::ColumnMajor
+            );
+            // matrix multiplication and addition
+            let button_presses = &(&nullspace_basis * &free_variable_choices) + &particular;
+            let negative_button_presses = button_presses[0].iter().filter(|&x|x.is_negative()).collect::<Vec<_>>();
+            if negative_button_presses.is_empty() {
+                button_presses[0].iter().sum::<Rational>() 
+            } else {
+                negative_button_presses.into_iter().sum::<Rational>().abs() + 5000.into()
+            }
+        };
+        let mut position = vec![Rational::ZERO; nullspace_basis.len()];
+        // let mut button_presses_with_these_choices = Rational::new(i16::MAX, 1);
+        let mut last_natural = Rational::new(i16::MAX, 1);
+        loop {
+            let neighbours: Vec<Vec<Rational>> = {
+                let num_of_dimentions = nullspace_basis.len();
+                (0..num_of_dimentions).flat_map(|i|{
+                    let mut pos_minus = position.clone();
+                    pos_minus[i] -= 1.into();
+
+                    let mut pos_plus = position.clone();
+                    pos_plus[i] += 1.into();
+
+                    [pos_minus, pos_plus]
+                }).collect()
             };
-            let nullspace_basis = homogenious_matrix.clone().transpose().nullspace();
-            let basis_dimentions = nullspace_basis.len();
-            if basis_dimentions == 0 {
-                return particular.into_iter().sum::<Rational>();
+            print!("{:?}:{:?}\t", position, loss(&position));
+            neighbours.iter().for_each(|x|print!("{:?}:{:?}, ", x, loss(x)));
+            println!("\t");
+            let best_neighbour:Vec<Rational> = neighbours.into_iter()
+            .min_by(|a, b|loss(a).cmp(&loss(b))).unwrap();
+            if loss(&position).denominator == 1 {
+                last_natural = loss(&position);
             }
-            // gradient descent 
-            let mut free_variables = vec![Rational::ZERO; nullspace_basis.len()];
-            let mut button_presses;
-            loop {
-                button_presses = nullspace_basis.mul(&free_variables);
-                for i in 0..button_presses.len() {
-                    button_presses[i] = button_presses[i] + particular[i]
-                }
-
-                let mut neighbour_free_vars = vec![free_variables.clone(); &nullspace_basis.len()*2];
-                for dim in 0..basis_dimentions {
-                    neighbour_free_vars[dim * 2 + 0][dim] = neighbour_free_vars[dim * 2 + 0][dim] + 1.into();
-                    neighbour_free_vars[dim * 2 + 1][dim] = neighbour_free_vars[dim * 2 + 1][dim] - 1.into();
-                }
-                let neighbour_button_presses = neighbour_free_vars.clone().into_iter().map(|x|nullspace_basis.mul(&x)).collect::<Vec<_>>();
-                if button_presses.iter().any(|x|x.numerator.is_negative()) {
-                    // choose the least negative one
-                    free_variables = neighbour_button_presses.into_iter().max_by(|a, b| {
-                        let a: Rational = a.into_iter()
-                            .filter(|x|x.numerator.is_negative())
-                            .cloned()
-                            .sum();
-                        let b: Rational = b.into_iter()
-                            .filter(|x|x.numerator.is_negative())
-                            .cloned()
-                            .sum();
-                        a.cmp(&b)
-                    }).unwrap();
-                    println!("{:?}", free_variables);
-                } else {
-                    // base case
-                    if button_presses.iter().copied().sum::<Rational>() <= neighbour_button_presses.iter().map(|x|x.iter().copied().sum()).min().unwrap() {
-                        break;
-                    }
-                    // choose smallest positive naighbour
-                    let best_neighbour_idx = neighbour_button_presses.iter().enumerate().filter(|(i, x)|{
-                        (**x).iter().all(|x|(*x).numerator.is_positive())
-                    }).max_by(|(_,xa), (_,xb)|{
-                        let a: Rational = xa.iter().copied().sum();
-                        let b: Rational = xb.iter().copied().sum();
-                        a.cmp(&b)
-                    }).map(|(i,_)| i).unwrap();
-                    free_variables = neighbour_free_vars.swap_remove(best_neighbour_idx)
-                }
+            if loss(&position) <= loss(&best_neighbour) {
+                return last_natural
             }
-
-
-            
-            return button_presses.into_iter().sum()
-        })
-        .collect::<Vec<_>>();
+            position = best_neighbour;
+        }
+    })
+    .collect::<Vec<_>>();
     
-    // println!("{:?}", p2)
+    // println!("{:?}", p2.iter().sum::<Rational>())
 }
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Orientation {
     RowMajor,
@@ -134,19 +101,21 @@ enum Orientation {
 }
 impl Orientation {
     fn flip(self) -> Self{
-        if self == Orientation::ColumnMajor{
-            Orientation::RowMajor
-        } else {
-            Orientation::ColumnMajor
+        match self {
+            Orientation::RowMajor => Orientation::ColumnMajor,
+            Orientation::ColumnMajor => Orientation::RowMajor,
         }
     }
 }
 #[derive(Debug, Clone)]
-struct Matrix(Vec<Vec<Rational>>, Option<Vec<usize>>, Orientation); // my include pivot columns after refed
+struct Matrix(Vec<Vec<Rational>>, Option<Vec<usize>>, Orientation);
 impl Matrix {
     fn print(self: &Self) {
-        self.clone()
-        // .transpose()
+        let to_print = match self.2 {
+            Orientation::RowMajor => self.clone(),
+            Orientation::ColumnMajor => self.clone().transpose(),
+        };
+        to_print
         .iter().for_each(|x| {
             x.iter().for_each(|x|{
                 print!("{:?} ", x)
@@ -155,12 +124,12 @@ impl Matrix {
         });
         println!();
     }
-    fn new(x: Vec<Vec<Rational>>) -> Matrix {
+    fn new(x: Vec<Vec<Rational>>, orientation: Orientation) -> Matrix {
         let column_length = x[0].len();
         if !x.iter().map(|x|x.len()).all(|x| x == column_length) {
             panic!("vectors not equal");
         }
-        Matrix(x, None, Orientation::ColumnMajor)
+        Matrix(x, None, orientation)
     }
     fn transpose(self) -> Matrix{
         let rows = self.len();
@@ -173,19 +142,7 @@ impl Matrix {
         }).collect();
         Matrix(transpose, self.1, self.2.flip())
     }
-    fn mul(&self, v: &Vec<Rational>) -> Vec<Rational>  {
-        dbg!(&self, &v);
-        assert_eq!(self.len(), v.len());
-        let mut product = vec![Rational::ZERO; self[0].len()];
-        for col in 0..self.len() {
-            let scale = v[col];
-            for i in 0..self[0].len() {
-                product[i] = product[i] + (scale * self[col][i]);
-            }
-        }
-        product
-    }
-    // i was copying this pseudocode: 
+    // from the pseudocode: 
     // https://en.wikipedia.org/wiki/Gaussian_elimination#Pseudocode
     /// performs gausian elimination
     fn row_echelon(self) -> Self {
@@ -245,12 +202,11 @@ impl Matrix {
         Matrix(mat, Some(piv_cols), Orientation::RowMajor)
     }
     fn nullspace(self) -> Matrix {
-        dbg!(&self);
+        assert_eq!(self.2, Orientation::RowMajor);
         // if the matrix has a pivot in every column,
         //  then the matrix is one-to-one and has no nullspace (besides trivial)
         if self.pivots().unwrap().iter().len() == self[0].len() {
-            println!("early return!");
-            return Matrix::new(vec![vec![]])
+            return Matrix::new(vec![vec![]], Orientation::ColumnMajor)
         };
 
         let mat= self.0;
@@ -259,13 +215,89 @@ impl Matrix {
         let free_cols = (0..mat[0].len()).filter(|x|!piv_cols.contains(x)).collect::<Vec<_>>();
         for &fc in &free_cols {
             let mut v = vec![Rational::ZERO; mat[0].len()];
-            for row in 0..mat.len() {
-                v[piv_cols[row]] = -mat[row][fc];
-            }
+            
             v[fc] = 1.into();
+
+            for (row_idx, &piv_col_idx) in piv_cols.iter().enumerate() {
+                if row_idx < mat.len() {
+                    v[piv_col_idx] = -mat[row_idx][fc].clone();
+                }
+            }
             nspace.push(v);
         }
-        Matrix::new(nspace)
+        Matrix::new(nspace, Orientation::ColumnMajor)
+    }
+    fn join(&self, rhs: &Self) -> Self {
+        let Matrix(lhs,_,  lhs_orientation) = self;
+        let Matrix(rhs, _, rhs_orientation) = rhs;
+        
+        assert_eq!(&lhs_orientation, &rhs_orientation);
+        assert_eq!(lhs[0].len(), rhs[0].len());
+        
+        let orientation = lhs_orientation;
+        Matrix::new(
+            lhs.clone().into_iter().chain(rhs.clone().into_iter()).collect(),
+            *orientation
+        )
+    }
+}
+impl<'a> Mul<&'a Matrix> for &'a Matrix {
+    type Output = Matrix;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        let lhs = match self.2 {
+            Orientation::RowMajor => self.clone(),
+            Orientation::ColumnMajor => self.clone().transpose()
+        };
+        let rhs = match rhs.2 {
+            Orientation::RowMajor => rhs.clone().transpose(),
+            Orientation::ColumnMajor => rhs.clone(),
+        };
+        assert_eq!(lhs[0].len(), rhs[0].len());
+        let mut out = Matrix::new(vec![vec![Rational::ZERO; rhs.len()]; lhs.len()], Orientation::RowMajor);
+        for (i, lfs_row) in lhs.iter().enumerate() {
+            for (j, rhs_col) in rhs.iter().enumerate() {
+                out[i][j] = lfs_row.iter().zip(rhs_col).map(|(a, b)| *a * *b).sum()
+            }
+        }
+        out
+    }
+}
+impl<'a> Add<&'a Matrix> for &'a Matrix {
+    type Output = Matrix;
+    
+    fn add(self, rhs: Self) -> Self::Output {
+        let lhs = match self.2 {
+            Orientation::RowMajor => self.clone().transpose(),
+            Orientation::ColumnMajor => self.clone()
+        };
+        let rhs = match rhs.2 {
+            Orientation::RowMajor => rhs.clone().transpose(),
+            Orientation::ColumnMajor => rhs.clone(),
+        };
+        assert_eq!(lhs[0].len(), rhs[0].len());
+        assert_eq!(lhs.len(), rhs.len());
+        let mut lhs = lhs.clone();
+        for i in 0..lhs.len() {
+            for j in 0..lhs[0].len() {
+                lhs[i][j] = lhs[i][j] + rhs[i][j];
+            }
+        };
+        lhs
+    }
+}
+impl Mul for Matrix {
+    type Output = Matrix;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        &self * &rhs
+    }
+}
+impl Add for Matrix {
+    type Output = Matrix;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        &self + &rhs
     }
 }
 impl Deref for Matrix {
@@ -306,12 +338,18 @@ impl Rational {
             denominator: self.denominator / gcd * sign_fliper,
         }
     }
+    fn is_negative(&self) -> bool {
+        self.numerator.is_negative()
+    }
+    fn abs(self) -> Self {
+        Rational { numerator: self.numerator.abs(), denominator: self.denominator }
+    }
 }
 impl Ord for Rational {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let a = self.numerator  / self.denominator;
-        let b = other.numerator / other.denominator;
-        a.cmp(&b)
+        let a = self.numerator as f64 / self.denominator as f64;
+        let b = other.numerator  as f64 / other.denominator  as f64;
+        a.partial_cmp(&b).unwrap()
     }
 }
 impl PartialOrd for Rational {    
@@ -388,15 +426,30 @@ impl Add for Rational{
         }.simplify()
     }
 }
+impl AddAssign for Rational {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = *self + rhs
+    }
+}
 impl Sub for Rational {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self::Output {
         (self + -rhs).simplify()
     }
 }
+impl SubAssign for Rational {
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = *self - rhs
+    }
+}
 impl Sum for Rational {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Rational::ZERO, |acc, x| acc + x)
+    }
+}
+impl<'a> Sum<&'a Rational> for Rational {
+    fn sum<I: Iterator<Item = &'a Self>>(iter: I) -> Self {
+        iter.fold(Rational::ZERO, |acc, x| acc + *x)
     }
 }
 // https://en.wikipedia.org/wiki/Euclidean_algorithm#Implementations

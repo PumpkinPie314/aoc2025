@@ -33,9 +33,11 @@ fn main() {
         let buttons = buttons.into_iter().map(|b|DVector::from_vec(b)).collect::<Vec<_>>();
         let buttons = DMatrix::from_columns(&buttons);
         let joltage = DVector::from_vec(joltage);
-        buttons.svd(true, true).solve(&joltage, 0.00001).unwrap()
+        let augmented = stack![buttons,joltage];
+        QR::new(augmented, )
     }).collect();
     for line in &input {
-        print!("{}", line);
+        // print!("{}", line.q());
+        print!("{}", line.r());
     }
 }
