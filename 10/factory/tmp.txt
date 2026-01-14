@@ -10,3 +10,37 @@ vec![1, 3, 7] -> {
     vec![1, 3, 6],
     vec![1, 3, 8],
 }
+
+[0  , 0  ]:10075/2      [-1  , 0  ]:10087/2, [1  , 0  ]:10065/2, [0  , -1  ]:5042  , [0  , 1  ]:5034  , 
+[1  , 0  ]:10065/2      [0  , 0  ]:10075/2, [2  , 0  ]:10055/2, [1  , -1  ]:5037  , [1  , 1  ]:5029  , 
+[2  , 0  ]:10055/2      [1  , 0  ]:10065/2, [3  , 0  ]:20093/4, [2  , -1  ]:5032  , [2  , 1  ]:10049/2, 
+
+
+        // gradient decent
+        let proccess = |free_variable_choices: &Vec<Rational>| -> (Rational, Rational) {
+            let free_variable_choices = Matrix::new(
+                vec![free_variable_choices.clone()],
+                Orientation::ColumnMajor
+            );
+            // matrix multiplication and addition
+            let button_presses = &(&nullspace_basis * &free_variable_choices) + &particular;
+            let negative_button_presses = button_presses[0].iter().filter(|&x|x.is_negative()).collect::<Vec<_>>();
+            (
+                button_presses[0].iter().sum::<Rational>(),
+                negative_button_presses.into_iter().sum::<Rational>().abs()
+            )
+        };
+
+        for i in -5..15 {
+            for j in -5..15 {
+                let (presses, negetivness) =proccess(&vec![i.into(), j.into()]);
+                print!("{:06.2} ", negetivness.as_float());
+            }
+            println!();
+            for j in -5..15 {
+                let (presses, negetivness) =proccess(&vec![i.into(), j.into()]);
+                print!("{:05.2} ", presses.as_float());
+            }
+            println!();
+            println!();
+        }

@@ -1,19 +1,18 @@
+use core::f32;
 use std::{fmt::Debug, iter::Sum, ops::{Add, AddAssign, Deref, DerefMut, Div, Mul, Neg, Sub, SubAssign}, vec};
 
 fn main() {
     let input = include_str!("input");
-    let _p2 = input
+    let p2 = input
     .replace(['{', '}', '[', ']', '(', ')'], "")
     .lines()
-    .skip(167)
-    .take(1)
     .enumerate()
     .map(|(i, line)| {
         let mut words = line.split_whitespace();
         // parsing
         let size = words.next().unwrap().len();
         let joltage: Vec<Rational> = words.next_back().unwrap().split(',')
-        .map(|x|x.parse::<i16>().unwrap().into())
+        .map(|x|x.parse::<i32>().unwrap().into())
         .collect();
         let buttons: Vec<Vec<Rational>> = words.map(|x|{
             let mut b = vec![Rational::ZERO;size];
@@ -39,10 +38,19 @@ fn main() {
         };
         let nullspace_basis = homogenious_matrix.clone().transpose().nullspace();
         if nullspace_basis[0].is_empty() {
-            println!("{:?}", particular[0].iter().sum::<Rational>());
+            // println!("empty nullspace: {:?}", particular[0].iter().sum::<Rational>());
             return particular[0].iter().sum();
         }
-        if nullspace_basis.len() != 2 {return 0.into();}
+        if nullspace_basis.len() != 2 {
+            return Rational::ZERO;
+        }
+        if ![49, 139, 143, 173].contains(&i) { return Rational::ZERO;}
+        // need to check
+        // 49
+        // 139
+        // 143
+        // 173
+        // 
 
         // gradient decent
         let loss = |free_variable_choices: &Vec<Rational>| -> Rational {
@@ -59,39 +67,60 @@ fn main() {
                 negative_button_presses.into_iter().sum::<Rational>().abs() + 5000.into()
             }
         };
+        println!("{:?}", i);
+        let mut smallest = f32::MAX;
+        for i in -00..25 {
+            for j in -00..20{
+                let loss = loss(&vec![i.into(), j.into()]).to_float();
+                if loss < smallest {
+                    smallest = loss;
+                }
+                print!("{:07.2} ", loss)
+            }
+            println!()
+        }
+
         let mut position = vec![Rational::ZERO; nullspace_basis.len()];
-        // let mut button_presses_with_these_choices = Rational::new(i16::MAX, 1);
-        let mut last_natural = Rational::new(i16::MAX, 1);
+        // let mut button_presses_with_these_choices = Rational::new(i32::MAX, 1);
+        let mut last_natural = Rational::new(i32::MAX, 1);
+        let mut visited: Vec<Vec<Rational>> = vec![];
         loop {
+            visited.push(position.clone());
             let neighbours: Vec<Vec<Rational>> = {
                 let num_of_dimentions = nullspace_basis.len();
-                (0..num_of_dimentions).flat_map(|i|{
-                    let mut pos_minus = position.clone();
-                    pos_minus[i] -= 1.into();
+                (0..num_of_dimentions).flat_map(|dimention|{
+                    let mut up = position.clone();
+                    up[dimention] -= 1.into();
 
-                    let mut pos_plus = position.clone();
-                    pos_plus[i] += 1.into();
+                    let mut down = position.clone();
+                    down[dimention] += 1.into();
 
-                    [pos_minus, pos_plus]
+                    [up, down]
                 }).collect()
             };
-            print!("{:?}:{:?}\t", position, loss(&position));
-            neighbours.iter().for_each(|x|print!("{:?}:{:?}, ", x, loss(x)));
+            print!("{:?}:{:?}\t", position, loss(&position).to_float());
+            neighbours.iter().for_each(|x|print!("{:?}:{:?}, ", x, loss(x).to_float()));
             println!("\t");
             let best_neighbour:Vec<Rational> = neighbours.into_iter()
+            .filter(|x|!visited.contains(&x))
             .min_by(|a, b|loss(a).cmp(&loss(b))).unwrap();
             if loss(&position).denominator == 1 {
                 last_natural = loss(&position);
             }
-            if loss(&position) <= loss(&best_neighbour) {
+            if loss(&position) < loss(&best_neighbour) {
+                // println!("nothing smaller then {:?}", loss(&position));
+                println!("{:?}", smallest);
+                println!("{:?}", loss(&position));
+                println!();
                 return last_natural
             }
             position = best_neighbour;
         }
-    })
-    .collect::<Vec<_>>();
+    }).sum::<Rational>();
     
-    // println!("{:?}", p2.iter().sum::<Rational>())
+    println!("{:?}", p2)
+    // 59498 too high
+    // 30368 too high
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -315,15 +344,15 @@ impl DerefMut for Matrix {
 
 #[derive(Clone, Copy)]
 struct Rational{
-    numerator: i16,
-    denominator: i16
+    numerator: i32,
+    denominator: i32
 }
 impl Rational {
     const ZERO: Rational= Rational {
         numerator: 0,
         denominator: 1,
     };
-    fn new(n: i16, d: i16) -> Self{
+    fn new(n: i32, d: i32) -> Self{
         Rational {
             numerator: n,
             denominator: d,
@@ -344,6 +373,9 @@ impl Rational {
     fn abs(self) -> Self {
         Rational { numerator: self.numerator.abs(), denominator: self.denominator }
     }
+    fn to_float(self) -> f32 {
+        self.numerator as f32 / self.denominator as f32
+    }
 }
 impl Ord for Rational {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
@@ -354,15 +386,11 @@ impl Ord for Rational {
 }
 impl PartialOrd for Rational {    
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match self.numerator.partial_cmp(&other.numerator) {
-            Some(core::cmp::Ordering::Equal) => {}
-            ord => return ord,
-        }
-        self.denominator.partial_cmp(&other.denominator)
+        self.to_float().partial_cmp(&other.to_float())
     }
 }
-impl From<i16> for Rational {
-    fn from(value: i16) -> Self {
+impl From<i32> for Rational {
+    fn from(value: i32) -> Self {
         Rational { numerator: value, denominator: 1 }
     }
 }
@@ -453,7 +481,7 @@ impl<'a> Sum<&'a Rational> for Rational {
     }
 }
 // https://en.wikipedia.org/wiki/Euclidean_algorithm#Implementations
-fn gcd(a: i16, b: i16) -> i16{
+fn gcd(a: i32, b: i32) -> i32{
     let mut a = a;
     let mut b = b;
     while a != 0 {
