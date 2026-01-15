@@ -1,11 +1,13 @@
 use core::f32;
-use std::{fmt::Debug, iter::Sum, ops::{Add, AddAssign, Deref, DerefMut, Div, Mul, Neg, Sub, SubAssign}, vec};
+use std::{collections::VecDeque, fmt::Debug, iter::Sum, ops::{Add, AddAssign, Deref, DerefMut, Div, Mul, Neg, Sub, SubAssign}, ptr::null, vec};
 
 fn main() {
     let input = include_str!("input");
     let p2 = input
     .replace(['{', '}', '[', ']', '(', ')'], "")
     .lines()
+    .skip(139)
+    .take(1)
     .enumerate()
     .map(|(i, line)| {
         let mut words = line.split_whitespace();
@@ -41,19 +43,7 @@ fn main() {
             // println!("empty nullspace: {:?}", particular[0].iter().sum::<Rational>());
             return particular[0].iter().sum();
         }
-        if nullspace_basis.len() != 2 {
-            return Rational::ZERO;
-        }
-        if ![49, 139, 143, 173].contains(&i) { return Rational::ZERO;}
-        // need to check
-        // 49
-        // 139
-        // 143
-        // 173
-        // 
-
-        // gradient decent
-        let loss = |free_variable_choices: &Vec<Rational>| -> Rational {
+        let calc = |free_variable_choices: &Vec<Rational>| -> (Rational, Rational) {
             let free_variable_choices = Matrix::new(
                 vec![free_variable_choices.clone()],
                 Orientation::ColumnMajor
@@ -61,66 +51,64 @@ fn main() {
             // matrix multiplication and addition
             let button_presses = &(&nullspace_basis * &free_variable_choices) + &particular;
             let negative_button_presses = button_presses[0].iter().filter(|&x|x.is_negative()).collect::<Vec<_>>();
-            if negative_button_presses.is_empty() {
-                button_presses[0].iter().sum::<Rational>() 
-            } else {
-                negative_button_presses.into_iter().sum::<Rational>().abs() + 5000.into()
-            }
+            (
+                button_presses[0].iter().sum::<Rational>(),
+                negative_button_presses.into_iter().sum::<Rational>().abs() + 500.into()
+            )
         };
-        println!("{:?}", i);
-        let mut smallest = f32::MAX;
-        for i in -00..25 {
-            for j in -00..20{
-                let loss = loss(&vec![i.into(), j.into()]).to_float();
-                if loss < smallest {
-                    smallest = loss;
-                }
-                print!("{:07.2} ", loss)
+        let feildsize = (-1000..10, -20..-00);
+        for i in feildsize.clone().0 {
+            for j in feildsize.clone().1 {
+                let (presses, negativness) = calc(&vec![i.into(), j.into()]);
+                print!("{:07.2} ", presses.to_float())
             }
             println!()
         }
-
         let mut position = vec![Rational::ZERO; nullspace_basis.len()];
         // let mut button_presses_with_these_choices = Rational::new(i32::MAX, 1);
         let mut last_natural = Rational::new(i32::MAX, 1);
         let mut visited: Vec<Vec<Rational>> = vec![];
-        loop {
-            visited.push(position.clone());
-            let neighbours: Vec<Vec<Rational>> = {
-                let num_of_dimentions = nullspace_basis.len();
-                (0..num_of_dimentions).flat_map(|dimention|{
-                    let mut up = position.clone();
-                    up[dimention] -= 1.into();
+        let mut dfs_queue: VecDeque<Vec<Rational>> = vec![].into();
+        let mut lowest_from: VecDeque<Vec<Rational>> = vec![].into();
+        let neighbours = |position: Vec<Rational>| -> Vec<Vec<Rational>> {
+            let num_of_dimentions = nullspace_basis.len();
+            (0..num_of_dimentions).flat_map(|dimention|{
+                let mut up = position.clone();
+                up[dimention] -= 1.into();
 
-                    let mut down = position.clone();
-                    down[dimention] += 1.into();
+                let mut down = position.clone();
+                down[dimention] += 1.into();
 
-                    [up, down]
-                }).collect()
-            };
-            print!("{:?}:{:?}\t", position, loss(&position).to_float());
-            neighbours.iter().for_each(|x|print!("{:?}:{:?}, ", x, loss(x).to_float()));
-            println!("\t");
-            let best_neighbour:Vec<Rational> = neighbours.into_iter()
-            .filter(|x|!visited.contains(&x))
-            .min_by(|a, b|loss(a).cmp(&loss(b))).unwrap();
-            if loss(&position).denominator == 1 {
-                last_natural = loss(&position);
-            }
-            if loss(&position) < loss(&best_neighbour) {
-                // println!("nothing smaller then {:?}", loss(&position));
-                println!("{:?}", smallest);
-                println!("{:?}", loss(&position));
-                println!();
-                return last_natural
-            }
-            position = best_neighbour;
-        }
+                [up, down]
+            }).collect()
+        };
+        // loop {
+        //     visited.push(position.clone());
+            
+        //     let best_neighbour: Vec<Rational> = neighbours.into_iter()
+        //     .filter(|x|!visited.contains(&x))
+        //     .min_by(|a, b|calc(a).cmp(&calc(b))).unwrap();
+        //     if calc(&position).denominator == 1 {
+        //         last_natural = calc(&position);
+        //     }
+        //     if calc(&position) < calc(&best_neighbour) {
+        //         // println!("nothing smaller then {:?}", loss(&position));
+        //         // println!("{:?}", smallest);
+        //         // println!("{:?}", loss(&position));
+        //         // println!();
+        //         return last_natural
+        //     }
+        //     position = best_neighbour;
+        // }
+        return Rational::ZERO
     }).sum::<Rational>();
     
     println!("{:?}", p2)
-    // 59498 too high
-    // 30368 too high
+    // 59498 too high -- orthogonal neighbours
+    // 30368 too high -- neighbours include diagonals
+    // 25633 -- neighbours include diagonals, and we can continue down paths of the same value 
+    // splitting? floodfill?
+
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
