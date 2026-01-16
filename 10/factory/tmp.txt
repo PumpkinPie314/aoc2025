@@ -44,3 +44,116 @@ vec![1, 3, 7] -> {
             println!();
             println!();
         }
+
+
+
+
+        let calc = |free_variable_choices: &Vec<Rational>| -> (Rational, Rational) {
+            let free_variable_choices = Matrix::new(
+                vec![free_variable_choices.clone()],
+                Orientation::ColumnMajor
+            );
+            // matrix multiplication and addition
+            let button_presses = &(&nullspace_basis * &free_variable_choices) + &particular;
+            let negative_button_presses = button_presses[0].iter().filter(|&x|x.is_negative()).collect::<Vec<_>>();
+            (
+                button_presses[0].iter().sum::<Rational>(),
+                negative_button_presses.into_iter().sum::<Rational>().abs()
+            )
+        };
+        let scale = 1;
+        let one_over_scale = Rational::new(1, scale);
+        let feildsize = (scale*0..scale*20, scale*-5..scale*20);
+        for d in 0..nullspace_basis[0].len() {
+        //     println!("row {}:", d);
+        //     for i in feildsize.clone().0 {
+        //         for j in feildsize.clone().1 {
+        //             let free_variable_choices = Matrix::new(
+        //                 vec![vec![one_over_scale * i.into(), one_over_scale *j.into()]],
+        //                 Orientation::ColumnMajor
+        //             );
+        //             // let (presses, negativness) = calc(&vec![i.into(), j.into()]);
+        //             let button_presses = &(&nullspace_basis * &free_variable_choices) + &particular;
+        //             print!("{:03.1} ", button_presses[0][d].to_float());
+                    
+        //         }
+        //         println!()
+        //     }
+        //     println!("row {} again:", d);
+        //     for i in feildsize.clone().0 {
+        //         for j in feildsize.clone().1 {
+        //             let free_variable_choices = Matrix::new(
+        //                 vec![vec![one_over_scale * i.into(), one_over_scale *j.into()]],
+        //                 Orientation::ColumnMajor
+        //             );
+        //             // let (presses, negativness) = calc(&vec![i.into(), j.into()]);
+        //             let button_presses = (&nullspace_basis * &free_variable_choices);// + &particular;
+        //             print!("{:03.1} ", button_presses[d][0].to_float());
+                    
+        //         }
+        //         println!()
+        //     }
+        // println!();
+        }
+        
+        println!("negativness:");
+        for i in feildsize.clone().0 {
+            for j in feildsize.clone().1 {
+                let (_, negativness) = calc(&vec![one_over_scale * i.into(), one_over_scale *j.into()]);
+                if negativness.to_float() < 99.1 {
+                    print!("{:02.0} ", negativness.to_float())
+                } else {
+                    print!("   ")
+                }
+            }
+            println!()
+        }
+
+        println!("sum:");
+        for i in feildsize.clone().0 {
+            for j in feildsize.clone().1 {
+                let (presses, _) = calc(&vec![one_over_scale * i.into(), one_over_scale *j.into()]);
+                if presses.to_float() < 999.1 {
+                    print!("{:03.0} ", presses.to_float())
+                } else {
+                    print!("    ")
+                }
+            }
+            println!()
+        }
+        // let mut position = vec![Rational::ZERO; nullspace_basis.len()];
+        // // let mut button_presses_with_these_choices = Rational::new(i32::MAX, 1);
+        // let mut last_natural = Rational::new(i32::MAX, 1);
+        // let mut visited: Vec<Vec<Rational>> = vec![];
+        // let mut dfs_queue: VecDeque<Vec<Rational>> = vec![].into();
+        // let mut lowest_from: VecDeque<Vec<Rational>> = vec![].into();
+        // let neighbours = |position: Vec<Rational>| -> Vec<Vec<Rational>> {
+        //     let num_of_dimentions = nullspace_basis.len();
+        //     (0..num_of_dimentions).flat_map(|dimention|{
+        //         let mut up = position.clone();
+        //         up[dimention] -= 1.into();
+
+        //         let mut down = position.clone();
+        //         down[dimention] += 1.into();
+
+        //         [up, down]
+        //     }).collect()
+        // };
+        // loop {
+        //     visited.push(position.clone());
+            
+        //     let best_neighbour: Vec<Rational> = neighbours.into_iter()
+        //     .filter(|x|!visited.contains(&x))
+        //     .min_by(|a, b|calc(a).cmp(&calc(b))).unwrap();
+        //     if calc(&position).denominator == 1 {
+        //         last_natural = calc(&position);
+        //     }
+        //     if calc(&position) < calc(&best_neighbour) {
+        //         // println!("nothing smaller then {:?}", loss(&position));
+        //         // println!("{:?}", smallest);
+        //         // println!("{:?}", loss(&position));
+        //         // println!();
+        //         return last_natural
+        //     }
+        //     position = best_neighbour;
+        // }

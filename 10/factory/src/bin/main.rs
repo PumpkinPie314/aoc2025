@@ -1,15 +1,15 @@
 use core::f32;
-use std::{collections::VecDeque, fmt::Debug, iter::Sum, ops::{Add, AddAssign, Deref, DerefMut, Div, Mul, Neg, Sub, SubAssign}, ptr::null, vec};
+use std::{fmt::Debug, iter::Sum, ops::{Add, AddAssign, Deref, DerefMut, Div, Mul, Neg, Sub, SubAssign}, vec};
 
 fn main() {
     let input = include_str!("input");
     let p2 = input
     .replace(['{', '}', '[', ']', '(', ')'], "")
     .lines()
-    .skip(139)
+    .skip(143)//136, 49
     .take(1)
     .enumerate()
-    .map(|(i, line)| {
+    .map(|(_i, line)| {
         let mut words = line.split_whitespace();
         // parsing
         let size = words.next().unwrap().len();
@@ -43,63 +43,33 @@ fn main() {
             // println!("empty nullspace: {:?}", particular[0].iter().sum::<Rational>());
             return particular[0].iter().sum();
         }
-        let calc = |free_variable_choices: &Vec<Rational>| -> (Rational, Rational) {
-            let free_variable_choices = Matrix::new(
-                vec![free_variable_choices.clone()],
-                Orientation::ColumnMajor
-            );
-            // matrix multiplication and addition
-            let button_presses = &(&nullspace_basis * &free_variable_choices) + &particular;
-            let negative_button_presses = button_presses[0].iter().filter(|&x|x.is_negative()).collect::<Vec<_>>();
-            (
-                button_presses[0].iter().sum::<Rational>(),
-                negative_button_presses.into_iter().sum::<Rational>().abs() + 500.into()
-            )
-        };
-        let feildsize = (-1000..10, -20..-00);
-        for i in feildsize.clone().0 {
-            for j in feildsize.clone().1 {
-                let (presses, negativness) = calc(&vec![i.into(), j.into()]);
-                print!("{:07.2} ", presses.to_float())
+        
+        println!("A: ");
+        homogenious_matrix.print();
+        println!("nullspace: ");
+        nullspace_basis.print();
+        println!("b: ");
+        particular.print();
+
+        let lines: Matrix = nullspace_basis.join(&(- particular)).transpose();
+        lines.print();
+
+        
+        for i in 0..lines.len() {
+            for j in i+1..lines.len() {
+                // println!("{:?} - {:?}", lines[i], lines[j])
+                // Matrix::new(vec![lines[i].clone(), lines[j].clone()], Orientation::RowMajor).print();
+                let intersection_mat = Matrix::new(vec![lines[i].clone(), lines[j].clone()], Orientation::RowMajor)
+                    .row_echelon()
+                    .reduced_row_echelon();
+                if intersection_mat.pivots().unwrap().len() < intersection_mat.len() {
+                    // println!("parellel");
+                    continue; // lines to not intersect
+                }
+                dbg!(intersection_mat.transpose().last().unwrap());
             }
-            println!()
         }
-        let mut position = vec![Rational::ZERO; nullspace_basis.len()];
-        // let mut button_presses_with_these_choices = Rational::new(i32::MAX, 1);
-        let mut last_natural = Rational::new(i32::MAX, 1);
-        let mut visited: Vec<Vec<Rational>> = vec![];
-        let mut dfs_queue: VecDeque<Vec<Rational>> = vec![].into();
-        let mut lowest_from: VecDeque<Vec<Rational>> = vec![].into();
-        let neighbours = |position: Vec<Rational>| -> Vec<Vec<Rational>> {
-            let num_of_dimentions = nullspace_basis.len();
-            (0..num_of_dimentions).flat_map(|dimention|{
-                let mut up = position.clone();
-                up[dimention] -= 1.into();
 
-                let mut down = position.clone();
-                down[dimention] += 1.into();
-
-                [up, down]
-            }).collect()
-        };
-        // loop {
-        //     visited.push(position.clone());
-            
-        //     let best_neighbour: Vec<Rational> = neighbours.into_iter()
-        //     .filter(|x|!visited.contains(&x))
-        //     .min_by(|a, b|calc(a).cmp(&calc(b))).unwrap();
-        //     if calc(&position).denominator == 1 {
-        //         last_natural = calc(&position);
-        //     }
-        //     if calc(&position) < calc(&best_neighbour) {
-        //         // println!("nothing smaller then {:?}", loss(&position));
-        //         // println!("{:?}", smallest);
-        //         // println!("{:?}", loss(&position));
-        //         // println!();
-        //         return last_natural
-        //     }
-        //     position = best_neighbour;
-        // }
         return Rational::ZERO
     }).sum::<Rational>();
     
@@ -148,6 +118,7 @@ impl Matrix {
         }
         Matrix(x, None, orientation)
     }
+    /// the matrix stays the same, but it's internal representation is flipped between row-major and column-major
     fn transpose(self) -> Matrix{
         let rows = self.len();
         let cols = self[0].len();
@@ -301,6 +272,21 @@ impl<'a> Add<&'a Matrix> for &'a Matrix {
             }
         };
         lhs
+    }
+}
+impl Neg for Matrix {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Matrix (
+            (*self).clone().into_iter().map(|major|{
+                major.into_iter().map(|x|{
+                    -x
+                }).collect()
+            }).collect(),
+            self.1,
+            self.2
+        )
     }
 }
 impl Mul for Matrix {
