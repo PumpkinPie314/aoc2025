@@ -1,5 +1,4 @@
-use nalgebra::*;
-use ::core::iter::once;
+use nalgebra::{DMatrix, DVector, SVD, Scalar, stack};
 fn main() {
     let input = include_str!("test")
     .replace(['{', '}', '[', ']', '(', ')'], "");
@@ -20,12 +19,12 @@ fn main() {
             .map(|x|x.chars().next().unwrap() as usize - 48)
             .collect()
         }).collect();
-        // buttons should be vectors with 0s and 1s. [1,3] -> [0,1,0,1]
+        // buttons should be column vectors with 0s and 1s. [1,3] -> [0,1,0,1]
         let buttons: Vec<Vec<f64>> = buttons.into_iter()
         .map(|b|{
             let mut button = vec![0.0; nrows];
-            for indicator in b {
-                button[indicator] = 1.0;
+            for button_link in b {
+                button[button_link] = 1.0
             }
             button
         }).collect();
@@ -33,11 +32,12 @@ fn main() {
         let buttons = buttons.into_iter().map(|b|DVector::from_vec(b)).collect::<Vec<_>>();
         let buttons = DMatrix::from_columns(&buttons);
         let joltage = DVector::from_vec(joltage);
-        let augmented = stack![buttons,joltage];
-        QR::new(augmented, )
+        let usv_t = SVD::new(buttons.clone(),true, true);
+        usv_t.singular_values
+        
+        
     }).collect();
     for line in &input {
-        // print!("{}", line.q());
-        print!("{}", line.r());
+        print!("{}", line);
     }
 }

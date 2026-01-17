@@ -1,13 +1,17 @@
 use core::f32;
-use std::{fmt::Debug, iter::Sum, ops::{Add, AddAssign, Deref, DerefMut, Div, Mul, Neg, Sub, SubAssign}, vec};
+use std::{fmt::Debug, iter::{self, Sum}, ops::{Add, AddAssign, Deref, DerefMut, Div, Mul, Neg, Sub, SubAssign}, vec};
+
+use itertools::Itertools;
+use nalgebra::coordinates::X;
 
 fn main() {
     let input = include_str!("input");
     let p2 = input
     .replace(['{', '}', '[', ']', '(', ')'], "")
     .lines()
-    .skip(143)//136, 49
-    .take(1)
+    // .skip(143)//136, 49
+    // .skip(136)//136, 49
+    // .take(1)
     .enumerate()
     .map(|(_i, line)| {
         let mut words = line.split_whitespace();
@@ -19,8 +23,9 @@ fn main() {
         let buttons: Vec<Vec<Rational>> = words.map(|x|{
             let mut b = vec![Rational::ZERO;size];
             x.split(',')
-                .map(|wire|wire.parse().unwrap())
-                .for_each(|wire: usize| b[wire] = 1.into());
+            .map(|wire|wire.parse().unwrap())
+            .for_each(|wire: usize| b[wire] = 1.into());
+
             b
         }).collect();
         // get into matrices
@@ -28,8 +33,9 @@ fn main() {
         let joltage = Matrix::new(vec![joltage], Orientation::ColumnMajor);
         let matrix = buttons.join(&joltage).transpose();
         let rref = matrix.clone()
-            .row_echelon()
-            .reduced_row_echelon();
+        .row_echelon()
+        .reduced_row_echelon();
+
         let mut rref_cols = rref.clone().transpose();
         let pivot_columns = &rref.1.clone().unwrap();
         let (augmented_column, homogenious_matrix) = (rref_cols.pop().unwrap(), rref_cols);
@@ -41,44 +47,80 @@ fn main() {
         let nullspace_basis = homogenious_matrix.clone().transpose().nullspace();
         if nullspace_basis[0].is_empty() {
             // println!("empty nullspace: {:?}", particular[0].iter().sum::<Rational>());
-            return particular[0].iter().sum();
+            return particular[0].iter().sum::<Rational>().round();
         }
-        
-        println!("A: ");
-        homogenious_matrix.print();
-        println!("nullspace: ");
-        nullspace_basis.print();
-        println!("b: ");
-        particular.print();
+        // println!("A: ");
+        // homogenious_matrix.print();
+        // println!("nullspace: ");
+        // nullspace_basis.print();
+        // println!("b: ");
+        // particular.print();
 
-        let lines: Matrix = nullspace_basis.join(&(- particular)).transpose();
-        lines.print();
+        // let linear_equations: Matrix = nullspace_basis.join(&(- particular)).transpose();
+        let linear_equations = { 
+            let mut x = rref.nullspace().transpose();
+            x.pop();
+            x
+        };
 
-        
-        for i in 0..lines.len() {
-            for j in i+1..lines.len() {
-                // println!("{:?} - {:?}", lines[i], lines[j])
-                // Matrix::new(vec![lines[i].clone(), lines[j].clone()], Orientation::RowMajor).print();
-                let intersection_mat = Matrix::new(vec![lines[i].clone(), lines[j].clone()], Orientation::RowMajor)
-                    .row_echelon()
-                    .reduced_row_echelon();
-                if intersection_mat.pivots().unwrap().len() < intersection_mat.len() {
-                    // println!("parellel");
-                    continue; // lines to not intersect
-                }
-                dbg!(intersection_mat.transpose().last().unwrap());
+        linear_equations.0.clone().into_iter().combinations(nullspace_basis.len())
+        .map(|x|{
+            let rref = Matrix::new(x.clone(), Orientation::RowMajor).row_echelon().reduced_row_echelon();
+            rref
+        })
+        // only keep combinations of equations that actually intersect at a point
+        .filter(|rref| rref.pivots().unwrap().len() == rref.len())
+        // only want the answer (right most column)
+        .map(|x| {
+            Matrix::new(
+                vec![
+                    x.transpose().pop().unwrap().into_iter()
+                    // add a 1 at the end for the particular solution
+                    .chain(iter::once(Rational::new(-1,1))).collect()
+                ],
+                Orientation::ColumnMajor
+            )
+        })
+        // only want vertexes that satisfy each equation
+        .filter(|vertex|{
+            for eq in &linear_equations.0 {
+                let inequality = Matrix::new(vec![eq.clone()], Orientation::RowMajor);
+                let value = (&inequality * &vertex)[0][0];
+                if value < Rational::ZERO {
+                    // print!("{:?} dot {:?} = {:?}", inequality.0, x.0, value);
+                    // println!();
+                    return false
+                };
             }
-        }
-
-        return Rational::ZERO
-    }).sum::<Rational>();
+            true
+        })
+        // button presses for each vertex
+        .map(|nullspace_choices|{
+            (linear_equations.clone() * nullspace_choices).transpose()
+        })
+        .min_by(|a,b|{
+            let a = a.0[0].iter().sum::<Rational>();
+            let b = b.0[0].iter().sum::<Rational>();
+            a.cmp(&b)
+        })
+        .map(|x|{
+            println!("{:?}", x.0[0]);
+            x.0[0].iter().map(|x|x.round()).sum::<i32>()
+        })
+        .unwrap()
+        // .for_each(|x|x.print());
+        // println!("{:?}", possible_button_presses);
+            
+        // return Rational::ZERO
+    }).sum::<i32>();
     
     println!("{:?}", p2)
     // 59498 too high -- orthogonal neighbours
     // 30368 too high -- neighbours include diagonals
-    // 25633 -- neighbours include diagonals, and we can continue down paths of the same value 
-    // splitting? floodfill?
-
+    // 25633 too high -- neighbours include diagonals, and we can continue down paths of the same value 
+    // 5213717 / 252 .ceil() not right -- linear programing. no rounding
+    // 20632 -- floor
+    // 20709 -- propper rounding
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -228,6 +270,9 @@ impl Matrix {
             *orientation
         )
     }
+    fn flip(self) -> Self{
+        Matrix(self.0, self.1, self.2.flip())
+    }
 }
 impl<'a> Mul<&'a Matrix> for &'a Matrix {
     type Output = Matrix;
@@ -349,6 +394,9 @@ impl Rational {
     }
     fn to_float(self) -> f32 {
         self.numerator as f32 / self.denominator as f32
+    }
+    fn round(&self) -> i32 {
+        self.to_float().round() as i32
     }
 }
 impl Ord for Rational {
