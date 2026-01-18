@@ -98,7 +98,10 @@ fn main() {
     //      this way the memory for one matrix is close together.
     //      a better api would let me avoid all the weird .transposes I needed to get the data in the right order. 
     //      it is an ugly leaky abstraction.
-    // Also the Rationals I made probly shouldn't try to simplify after every
+    // Also the Rationals I made probly shouldn't try to simplify after every opperation, but i suspect this isn't any bottleneck on performance
+    
+
+    // the flamegraph shows most of the time was spent on matrix rrefs. so that's that
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
