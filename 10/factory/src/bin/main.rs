@@ -2,16 +2,12 @@ use core::f32;
 use std::{fmt::Debug, iter::{self, Sum}, ops::{Add, AddAssign, Deref, DerefMut, Div, Mul, Neg, Sub, SubAssign}, vec};
 
 use itertools::Itertools;
-use nalgebra::coordinates::X;
 
 fn main() {
     let input = include_str!("input");
     let p2 = input
     .replace(['{', '}', '[', ']', '(', ')'], "")
     .lines()
-    // .skip(143)//136, 49
-    // .skip(136)//136, 49
-    // .take(1)
     .enumerate()
     .map(|(_i, line)| {
         let mut words = line.split_whitespace();
@@ -32,95 +28,77 @@ fn main() {
         let buttons = Matrix::new(buttons, Orientation::ColumnMajor);
         let joltage = Matrix::new(vec![joltage], Orientation::ColumnMajor);
         let matrix = buttons.join(&joltage).transpose();
-        let rref = matrix.clone()
+        let mut nullspace =  matrix.clone()
         .row_echelon()
-        .reduced_row_echelon();
+        .reduced_row_echelon()
+        .nullspace()
+        .transpose();
 
-        let mut rref_cols = rref.clone().transpose();
-        let pivot_columns = &rref.1.clone().unwrap();
-        let (augmented_column, homogenious_matrix) = (rref_cols.pop().unwrap(), rref_cols);
-        let particular = {
-            let mut p: Vec<Rational> = vec![0.into(); buttons.len()];
-            pivot_columns.iter().zip(augmented_column).for_each(|(i, v)| p[*i] = v);
-            Matrix::new(vec![p], Orientation::ColumnMajor)
-        };
-        let nullspace_basis = homogenious_matrix.clone().transpose().nullspace();
-        if nullspace_basis[0].is_empty() {
-            // println!("empty nullspace: {:?}", particular[0].iter().sum::<Rational>());
-            return particular[0].iter().sum::<Rational>().round();
+        // the last element will be allways be like 0 ... 0 0 1, because it treats the augmented column the same as the others.
+        // we need to remove this bottom row.
+        // we will be accounting for this later by adding a -1 at the end of our nullspace paramiters.
+        nullspace.pop();
+
+
+        if nullspace[0].len() == 1 {
+            // the matrix has full rank, so the button presses are completely determined
+            return -nullspace.iter().flatten().sum::<Rational>().round();
         }
-        // println!("A: ");
-        // homogenious_matrix.print();
-        // println!("nullspace: ");
-        // nullspace_basis.print();
-        // println!("b: ");
-        // particular.print();
-
-        // let linear_equations: Matrix = nullspace_basis.join(&(- particular)).transpose();
-        let linear_equations = { 
-            let mut x = rref.nullspace().transpose();
-            x.pop();
-            x
-        };
-
-        linear_equations.0.clone().into_iter().combinations(nullspace_basis.len())
+        // linear programing. 
+        // the constraints are from every button needing to be pressed a zero or more times.
+        // every row in the nullspace corrisponds to one button's presses, 
+        // we find the intersection of every constraint, and pick the once with lowest overall button presses.
+        nullspace.0.clone().into_iter()
+        .combinations(nullspace[0].len()-1)
+        // we need enough contraints to define one choice of nullspace peramiters.
+        // eg: if we have 3 nullspace peramiters we need 3 contraint equations because 3 planes define a point.
+        //      the matrix would be 4x3 because we have the particular column on the right still.
         .map(|x|{
-            let rref = Matrix::new(x.clone(), Orientation::RowMajor).row_echelon().reduced_row_echelon();
-            rref
+            Matrix::new(x.clone(), Orientation::RowMajor)
+            .row_echelon()
+            .reduced_row_echelon()
         })
         // only keep combinations of equations that actually intersect at a point
-        .filter(|rref| rref.pivots().unwrap().len() == rref.len())
-        // only want the answer (right most column)
-        .map(|x| {
-            Matrix::new(
-                vec![
-                    x.transpose().pop().unwrap().into_iter()
-                    // add a 1 at the end for the particular solution
-                    .chain(iter::once(Rational::new(-1,1))).collect()
-                ],
-                Orientation::ColumnMajor
-            )
-        })
-        // only want vertexes that satisfy each equation
+        .filter(|x| x.pivots().unwrap().len() == x.len())
+        // get solution to system. get the singular choice of nullspace paramiters
+        .map(|x|x.transpose().pop().unwrap().into_iter())
+        // add a -1 at the end
+        .map(|x|x.chain(iter::once(Rational::new(-1,1))).collect())
+        .map(|x| Matrix::new(vec![x],Orientation::ColumnMajor))
+        // varify that every constraint holds for the point
         .filter(|vertex|{
-            for eq in &linear_equations.0 {
+            nullspace.iter().all(|eq|{
                 let inequality = Matrix::new(vec![eq.clone()], Orientation::RowMajor);
                 let value = (&inequality * &vertex)[0][0];
-                if value < Rational::ZERO {
-                    // print!("{:?} dot {:?} = {:?}", inequality.0, x.0, value);
-                    // println!();
-                    return false
-                };
-            }
-            true
+                value >= Rational::ZERO
+            })
         })
-        // button presses for each vertex
-        .map(|nullspace_choices|{
-            (linear_equations.clone() * nullspace_choices).transpose()
+        // we now have only the nullspace paramiters that lead to positive button presses
+        .map(|nullspace_paramiters| {
+            let button_presses = (&nullspace * &nullspace_paramiters).transpose();
+            button_presses
         })
         .min_by(|a,b|{
             let a = a.0[0].iter().sum::<Rational>();
             let b = b.0[0].iter().sum::<Rational>();
             a.cmp(&b)
         })
-        .map(|x|{
-            println!("{:?}", x.0[0]);
-            x.0[0].iter().map(|x|x.round()).sum::<i32>()
-        })
-        .unwrap()
-        // .for_each(|x|x.print());
-        // println!("{:?}", possible_button_presses);
-            
-        // return Rational::ZERO
+        .unwrap()[0]
+        .iter()
+        // round any fractional button presses.
+        .map(|x|x.round())
+        .sum::<i32>()
     }).sum::<i32>();
     
     println!("{:?}", p2)
-    // 59498 too high -- orthogonal neighbours
-    // 30368 too high -- neighbours include diagonals
-    // 25633 too high -- neighbours include diagonals, and we can continue down paths of the same value 
-    // 5213717 / 252 .ceil() not right -- linear programing. no rounding
-    // 20632 -- floor
-    // 20709 -- propper rounding
+
+    // this day took me the longest by far.
+    // I'm not entirly happy with my little matrix liberary, if i were to do it again I wouldn't do
+    //      nexted vectors and instead use a Matrix{num_cols, num_rows, data: vec[...]} type model instead.
+    //      this way the memory for one matrix is close together.
+    //      a better api would let me avoid all the weird .transposes I needed to get the data in the right order. 
+    //      it is an ugly leaky abstraction.
+    // Also the Rationals I made probly shouldn't try to simplify after every
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -139,6 +117,7 @@ impl Orientation {
 #[derive(Debug, Clone)]
 struct Matrix(Vec<Vec<Rational>>, Option<Vec<usize>>, Orientation);
 impl Matrix {
+    #[allow(dead_code)]
     fn print(self: &Self) {
         let to_print = match self.2 {
             Orientation::RowMajor => self.clone(),
@@ -270,9 +249,6 @@ impl Matrix {
             *orientation
         )
     }
-    fn flip(self) -> Self{
-        Matrix(self.0, self.1, self.2.flip())
-    }
 }
 impl<'a> Mul<&'a Matrix> for &'a Matrix {
     type Output = Matrix;
@@ -385,12 +361,6 @@ impl Rational {
             numerator: self.numerator / gcd * sign_fliper,
             denominator: self.denominator / gcd * sign_fliper,
         }
-    }
-    fn is_negative(&self) -> bool {
-        self.numerator.is_negative()
-    }
-    fn abs(self) -> Self {
-        Rational { numerator: self.numerator.abs(), denominator: self.denominator }
     }
     fn to_float(self) -> f32 {
         self.numerator as f32 / self.denominator as f32
